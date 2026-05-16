@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS DMS Migration — MySQL to S3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --aws-orange: #FF9900;
+    --aws-dark: #232F3E;
+    --aws-blue: #146EB4;
+    --aws-teal: #00A1C9;
+    --s3-green: #3F8624;
+    --mysql-blue: #00618A;
+    --dms-purple: #7B4F9E;
+    --bg: #0D1117;
+    --surface: #161B22;
+    --surface2: #1C2330;
+    --border: #30363D;
+    --text: #E6EDF3;
+    --text-muted: #7D8590;
+    --text-dim: #484F58;
+    --accent: #FF9900;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* HERO */
+  .hero {
+    position: relative;
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 60px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0D1117 0%, #1a0a2e 50%, #0D1117 100%);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 300px at 70% 40%, rgba(255,153,0,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 400px 200px at 20% 60%, rgba(0,161,201,0.08) 0%, transparent 60%);
+  }
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,153,0,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,153,0,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  .hero-badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid;
+  }
+  .badge-orange { background: rgba(255,153,0,0.12); border-color: rgba(255,153,0,0.3); color: var(--aws-orange); }
+  .badge-blue { background: rgba(0,161,201,0.12); border-color: rgba(0,161,201,0.3); color: var(--aws-teal); }
+  .badge-green { background: rgba(63,134,36,0.12); border-color: rgba(63,134,36,0.3); color: #6BCB45; }
+  .badge-purple { background: rgba(123,79,158,0.12); border-color: rgba(123,79,158,0.3); color: #B07ED4; }
+
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 700;
+    line-height: 1.1;
+    position: relative;
+    z-index: 1;
+    letter-spacing: -1px;
+  }
+  .hero h1 span { color: var(--aws-orange); }
+  .hero p {
+    margin-top: 16px;
+    font-size: 18px;
+    color: var(--text-muted);
+    max-width: 620px;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-author {
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    z-index: 1;
+  }
+  .avatar {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--aws-orange), var(--dms-purple));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; color: white;
+    border: 2px solid rgba(255,153,0,0.3);
+  }
+  .hero-author-info { font-size: 14px; }
+  .hero-author-info strong { display: block; color: var(--text); font-weight: 600; }
+  .hero-author-info span { color: var(--text-muted); }
+
+  /* ARCH BANNER */
+  .arch-banner {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 60px;
+    overflow-x: auto;
+  }
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-width: 600px;
+    justify-content: center;
+  }
+  .arch-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .arch-icon {
+    width: 72px; height: 72px;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    border: 1px solid;
+  }
+  .arch-icon.mysql { background: rgba(0,97,138,0.2); border-color: rgba(0,97,138,0.4); }
+  .arch-icon.rds   { background: rgba(20,110,180,0.2); border-color: rgba(20,110,180,0.4); }
+  .arch-icon.dms   { background: rgba(123,79,158,0.2); border-color: rgba(123,79,158,0.4); }
+  .arch-icon.s3    { background: rgba(63,134,36,0.2); border-color: rgba(63,134,36,0.4); }
+  .arch-label { font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; }
+  .arch-sublabel { font-size: 11px; color: var(--text-dim); }
+  .arch-arrow {
+    flex: 1; min-width: 40px; max-width: 100px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--border), var(--aws-orange), var(--border));
+    position: relative;
+    margin: 0 -1px;
+  }
+  .arch-arrow::after {
+    content: '';
+    position: absolute;
+    right: -6px; top: -5px;
+    border: 6px solid transparent;
+    border-left-color: var(--aws-orange);
+  }
+  .arch-arrow-label {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--aws-orange);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /* MAIN CONTENT */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 60px 80px;
+  }
+
+  /* TECH TABLE */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin: 40px 0;
+  }
+  .tech-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .tech-card:hover { border-color: var(--aws-orange); transform: translateY(-2px); }
+  .tech-card-icon { font-size: 32px; margin-bottom: 10px; }
+  .tech-card-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .tech-card-desc { font-size: 11px; color: var(--text-muted); }
+
+  /* SECTION HEADERS */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 56px 0 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .step-num {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: rgba(255,153,0,0.15);
+    border: 1px solid rgba(255,153,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--aws-orange);
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .section-title small {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0;
+  }
+
+  /* INFO CARDS */
+  .info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  .info-item-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .info-item strong { color: var(--text); font-weight: 600; }
+  .info-item span { color: var(--text-muted); font-size: 13px; }
+
+  /* CONFIG TABLES */
+  .config-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .config-table th {
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .config-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+    color: var(--text);
+  }
+  .config-table tr:last-child td { border-bottom: none; }
+  .config-table td:first-child { color: var(--text-muted); font-size: 13px; }
+  .config-table td code {
+    font-family: var(--mono);
+    background: rgba(255,153,0,0.1);
+    border: 1px solid rgba(255,153,0,0.2);
+    color: var(--aws-orange);
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+  }
+
+  /* CODE BLOCKS */
+  .code-wrap {
+    margin: 20px 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .code-header {
+    background: var(--surface2);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .code-header-left { display: flex; align-items: center; gap: 10px; }
+  .code-dots { display: flex; gap: 6px; }
+  .code-dot { width: 11px; height: 11px; border-radius: 50%; }
+  .code-dot:nth-child(1) { background: #FF5F56; }
+  .code-dot:nth-child(2) { background: #FFBD2E; }
+  .code-dot:nth-child(3) { background: #27C93F; }
+  .code-lang {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .code-file {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  pre {
+    background: var(--surface);
+    padding: 22px 24px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+    color: #CDD9E5;
+    margin: 0;
+  }
+  .kw  { color: #FF7B72; }
+  .fn  { color: #D2A8FF; }
+  .str { color: #A5D6FF; }
+  .cmt { color: #8B949E; font-style: italic; }
+  .num { color: #79C0FF; }
+  .key { color: #FFA657; }
+  .op  { color: #E3B341; }
+
+  /* CALLOUT BOXES */
+  .callout {
+    display: flex;
+    gap: 14px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    margin: 20px 0;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .callout-info { background: rgba(0,161,201,0.08); border: 1px solid rgba(0,161,201,0.25); }
+  .callout-warn { background: rgba(255,153,0,0.08); border: 1px solid rgba(255,153,0,0.25); }
+  .callout-success { background: rgba(63,134,36,0.08); border: 1px solid rgba(63,134,36,0.25); }
+  .callout-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+  .callout-info .callout-icon { filter: none; }
+
+  /* OUTCOME SECTION */
+  .outcome {
+    margin-top: 60px;
+    background: linear-gradient(135deg, rgba(255,153,0,0.05) 0%, rgba(123,79,158,0.05) 100%);
+    border: 1px solid rgba(255,153,0,0.2);
+    border-radius: 16px;
+    padding: 48px;
+    text-align: center;
+  }
+  .outcome h2 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .outcome h2 span { color: var(--aws-orange); }
+  .outcome p { color: var(--text-muted); font-size: 16px; max-width: 500px; margin: 0 auto 32px; }
+  .outcome-pills {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .outcome-pill {
+    padding: 8px 20px;
+    background: rgba(255,153,0,0.12);
+    border: 1px solid rgba(255,153,0,0.3);
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--aws-orange);
+  }
+
+  /* PATH BLOCK */
+  .path-block {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    color: var(--aws-teal);
+    margin: 10px 0;
+    display: inline-block;
+  }
+
+  /* SECURITY CALLOUT */
+  .security-note {
+    background: rgba(255,90,90,0.06);
+    border: 1px solid rgba(255,90,90,0.2);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: #FF9A9A;
+    margin: 16px 0;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  h2.plain {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 32px 0 14px;
+    color: var(--text);
+  }
+  p.prose { font-size: 15px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.75; }
+
+  .divider { height: 1px; background: var(--border); margin: 48px 0; }
+
+  /* IMAGE SHOWCASE */
+  .img-showcase {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .img-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .img-card img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+  }
+  .img-card-label {
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .img-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--aws-orange); }
+
+  @media (max-width: 700px) {
+    .hero { padding: 36px 24px; }
+    .arch-banner { padding: 28px 24px; }
+    .container { padding: 0 24px 60px; }
+    .img-showcase { grid-template-columns: 1fr; }
+    .tech-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-badges">
+    <span class="badge badge-orange">☁️ AWS Cloud</span>
+    <span class="badge badge-blue">🔄 DMS</span>
+    <span class="badge badge-green">🪣 S3</span>
+    <span class="badge badge-purple">🔁 CDC Enabled</span>
+  </div>
+  <h1>AWS DMS<br><span>MySQL → S3</span><br>Migration Project</h1>
+  <p>End-to-end data migration pipeline from RDS MySQL to Amazon S3 with real-time Change Data Capture replication.</p>
+  <div class="hero-author">
+    <div class="avatar">D</div>
+    <div class="hero-author-info">
+      <strong>Divyansh</strong>
+      <span>AWS Cloud Engineer · May 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<div class="arch-banner">
+  <div class="arch-flow">
+    <div class="arch-node">
+      <div class="arch-icon mysql">🛠️</div>
+      <div class="arch-label">MySQL Workbench</div>
+      <div class="arch-sublabel">SQL Operations</div>
+    </div>
+    <div class="arch-arrow" style="position:relative">
+      <span class="arch-arrow-label">SQL</span>
+    </div>
+    <div class="arch-node">
+      <div class="arch-icon rds">🗄️</div>
+      <div class="arch-label">AWS RDS</div>
+      <div class="arch-sublabel">Source DB</div>
+    </div>
+    <div class="arch-arrow" style="position:relative">
+      <span class="arch-arrow-label">DMS Task</span>
+    </div>
+    <div class="arch-node">
+      <div class="arch-icon dms">🔄</div>
+      <div class="arch-label">AWS DMS</div>
+      <div class="arch-sublabel">Migration Engine</div>
+    </div>
+    <div class="arch-arrow" style="position:relative">
+      <span class="arch-arrow-label">CDC + Full Load</span>
+    </div>
+    <div class="arch-node">
+      <div class="arch-icon s3">🪣</div>
+      <div class="arch-label">Amazon S3</div>
+      <div class="arch-sublabel">Target Storage</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- TECH STACK -->
+  <div class="tech-grid">
+    <div class="tech-card">
+      <div class="tech-card-icon">🗄️</div>
+      <div class="tech-card-name">AWS RDS MySQL</div>
+      <div class="tech-card-desc">Source Database</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-card-icon">🔄</div>
+      <div class="tech-card-name">AWS DMS</div>
+      <div class="tech-card-desc">Migration Service</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-card-icon">🪣</div>
+      <div class="tech-card-name">Amazon S3</div>
+      <div class="tech-card-desc">Target Storage</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-card-icon">🔐</div>
+      <div class="tech-card-name">IAM Role</div>
+      <div class="tech-card-desc">Permissions</div>
+    </div>
+    <div class="tech-card">
+      <div class="tech-card-icon">🛠️</div>
+      <div class="tech-card-name">MySQL Workbench</div>
+      <div class="tech-card-desc">SQL Operations</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STEP 1: RDS -->
+  <div class="section-header">
+    <div class="step-num">1</div>
+    <div class="section-title">
+      Create RDS MySQL Database
+      <small>AWS Console → RDS → Create Database</small>
+    </div>
+  </div>
+  <div class="img-showcase">
+    <div class="img-card">
+      <img src="https://d1.awsstatic.com/product-marketing/RDS/RDS_diagram.ced1c8862d65c8a2a0c2e99e89c8b1fa0b607e3e.png" alt="AWS RDS Setup" onerror="this.style.display='none'">
+      <div class="img-card-label"><span class="img-dot"></span> AWS RDS Console — Create Database</div>
+    </div>
+    <div class="img-card">
+      <img src="https://d1.awsstatic.com/Getting%20Started/rds-mysql.4e1e14b3a1d9f6f49afb78ed2a59c9e03db2f76b.png" alt="MySQL RDS" onerror="this.style.display='none'">
+      <div class="img-card-label"><span class="img-dot"></span> MySQL Engine Selection</div>
+    </div>
+  </div>
+  <div class="info-list">
+    <div class="info-item">
+      <span class="info-item-icon">📋</span>
+      <div><strong>Standard Create</strong> <br><span>Use Standard Create for full configuration control</span></div>
+    </div>
+    <div class="info-item">
+      <span class="info-item-icon">🐬</span>
+      <div><strong>Engine: MySQL</strong> <br><span>Latest supported MySQL version on RDS</span></div>
+    </div>
+    <div class="info-item">
+      <span class="info-item-icon">💰</span>
+      <div><strong>Template: Free Tier</strong> <br><span>db.t3.micro — perfect for development & testing</span></div>
+    </div>
+    <div class="info-item">
+      <span class="info-item-icon">🌐</span>
+      <div><strong>Public Access: Yes</strong> <br><span>Required for MySQL Workbench connection from local machine</span></div>
+    </div>
+  </div>
+
+  <!-- STEP 2: SECURITY GROUP -->
+  <div class="section-header">
+    <div class="step-num">2</div>
+    <div class="section-title">
+      Configure Security Group
+      <small>Allow inbound MySQL traffic</small>
+    </div>
+  </div>
+  <div class="security-note">
+    <span>⚠️</span>
+    <span>Setting source to <code>0.0.0.0/0</code> opens MySQL to all IPs. For production, restrict to your IP or VPC CIDR only.</span>
+  </div>
+  <table class="config-table">
+    <thead><tr><th>Type</th><th>Protocol</th><th>Port</th><th>Source</th><th>Use Case</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>MySQL/Aurora</td>
+        <td>TCP</td>
+        <td><code>3306</code></td>
+        <td><code>0.0.0.0/0</code></td>
+        <td>Allow MySQL connections</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- STEP 3: SQL -->
+  <div class="section-header">
+    <div class="step-num">3</div>
+    <div class="section-title">
+      SQL Table Creation
+      <small>Create company_db schema with departments & employees</small>
+    </div>
+  </div>
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-header-left">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span class="code-lang">SQL</span>
+      </div>
+      <span class="code-file">schema.sql</span>
+    </div>
+    <pre><span class="kw">CREATE DATABASE</span> company_db;
+<span class="kw">USE</span> company_db;
+
+<span class="cmt">-- Departments table</span>
+<span class="kw">CREATE TABLE</span> <span class="fn">departments</span> (
+    dept_id      <span class="key">INT</span> <span class="kw">AUTO_INCREMENT</span> <span class="kw">PRIMARY KEY</span>,
+    dept_name    <span class="key">VARCHAR</span>(<span class="num">100</span>) <span class="kw">NOT NULL</span>,
+    location     <span class="key">VARCHAR</span>(<span class="num">100</span>),
+    manager_name <span class="key">VARCHAR</span>(<span class="num">100</span>),
+    created_at   <span class="key">TIMESTAMP</span> <span class="kw">DEFAULT</span> <span class="fn">CURRENT_TIMESTAMP</span>
+);
+
+<span class="cmt">-- Employees table with FK to departments</span>
+<span class="kw">CREATE TABLE</span> <span class="fn">employees</span> (
+    emp_id     <span class="key">INT</span> <span class="kw">AUTO_INCREMENT</span> <span class="kw">PRIMARY KEY</span>,
+    first_name <span class="key">VARCHAR</span>(<span class="num">50</span>) <span class="kw">NOT NULL</span>,
+    last_name  <span class="key">VARCHAR</span>(<span class="num">50</span>),
+    gender     <span class="key">VARCHAR</span>(<span class="num">10</span>),
+    age        <span class="key">INT</span>,
+    email      <span class="key">VARCHAR</span>(<span class="num">100</span>) <span class="kw">UNIQUE</span>,
+    phone      <span class="key">VARCHAR</span>(<span class="num">15</span>),
+    hire_date  <span class="key">DATE</span>,
+    salary     <span class="key">DECIMAL</span>(<span class="num">10</span>,<span class="num">2</span>),
+    job_title  <span class="key">VARCHAR</span>(<span class="num">100</span>),
+    dept_id    <span class="key">INT</span>,
+    <span class="kw">FOREIGN KEY</span> (dept_id) <span class="kw">REFERENCES</span> departments(dept_id)
+);</pre>
+  </div>
+
+  <!-- STEP 4: INSERT -->
+  <div class="section-header">
+    <div class="step-num">4</div>
+    <div class="section-title">
+      Insert Sample Data
+      <small>Seed employees and departments for migration testing</small>
+    </div>
+  </div>
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-header-left">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span class="code-lang">SQL</span>
+      </div>
+      <span class="code-file">seed_data.sql</span>
+    </div>
+    <pre><span class="kw">INSERT INTO</span> employees
+    (first_name, last_name, gender, age, email,
+     phone, hire_date, salary, job_title, dept_id)
+<span class="kw">VALUES</span>
+    (<span class="str">'Ravi'</span>, <span class="str">'Kumar'</span>, <span class="str">'Male'</span>, <span class="num">26</span>,
+     <span class="str">'ravi@gmail.com'</span>, <span class="str">'9876500000'</span>,
+     <span class="str">'2026-05-12'</span>, <span class="num">65000</span>,
+     <span class="str">'Data Engineer'</span>, <span class="num">1</span>);</pre>
+  </div>
+
+  <!-- STEP 5: S3 -->
+  <div class="section-header">
+    <div class="step-num">5</div>
+    <div class="section-title">
+      Create S3 Bucket
+      <small>Target destination for migrated data</small>
+    </div>
+  </div>
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ️</span>
+    <div>S3 bucket names must be globally unique. Keep them lowercase, no spaces. Create a folder inside the bucket to organize migrated data by source or dataset name.</div>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:10px; margin: 16px 0;">
+    <div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Bucket Name</div>
+      <div class="path-block">my-dms-bucket-divyansh</div>
+    </div>
+    <div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Folder Path</div>
+      <div class="path-block">my-dms-bucket-divyansh/<span style="color:var(--aws-orange)">airline_data</span>/</div>
+    </div>
+  </div>
+
+  <!-- STEP 6: IAM -->
+  <div class="section-header">
+    <div class="step-num">6</div>
+    <div class="section-title">
+      Create IAM Role
+      <small>Grant DMS permission to write to S3</small>
+    </div>
+  </div>
+  <div class="callout callout-warn">
+    <span class="callout-icon">💡</span>
+    <div>In production, use a custom policy with least-privilege access to specific S3 bucket paths instead of <code>AmazonS3FullAccess</code>.</div>
+  </div>
+  <table class="config-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Role Name</td><td><code>dms-s3-role</code></td></tr>
+      <tr><td>Trusted Entity</td><td><code>dms.amazonaws.com</code></td></tr>
+      <tr><td>Policy Attached</td><td><code>AmazonS3FullAccess</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- STEP 7: REPLICATION INSTANCE -->
+  <div class="section-header">
+    <div class="step-num">7</div>
+    <div class="section-title">
+      Create DMS Replication Instance
+      <small>The compute engine that runs migration tasks</small>
+    </div>
+  </div>
+  <table class="config-table">
+    <thead><tr><th>Setting</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Instance Class</td><td><code>dms.t3.micro</code></td><td>Free tier eligible</td></tr>
+      <tr><td>Storage</td><td><code>20 GB</code></td><td>SSD, default</td></tr>
+      <tr><td>Public Access</td><td><code>Yes</code></td><td>Required to reach RDS</td></tr>
+      <tr><td>Engine Version</td><td><code>Latest</code></td><td>Auto-selected</td></tr>
+    </tbody>
+  </table>
+
+  <!-- STEP 8: SOURCE ENDPOINT -->
+  <div class="section-header">
+    <div class="step-num">8</div>
+    <div class="section-title">
+      Create Source Endpoint
+      <small>Connect DMS to RDS MySQL</small>
+    </div>
+  </div>
+  <table class="config-table">
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Endpoint Type</td><td><code>Source</code></td></tr>
+      <tr><td>Engine</td><td><code>MySQL</code></td></tr>
+      <tr><td>Server Name</td><td><code>&lt;RDS Endpoint URL&gt;</code></td></tr>
+      <tr><td>Port</td><td><code>3306</code></td></tr>
+      <tr><td>SSL Mode</td><td><code>none</code></td></tr>
+      <tr><td>Database</td><td><code>company_db</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- STEP 9: TARGET ENDPOINT -->
+  <div class="section-header">
+    <div class="step-num">9</div>
+    <div class="section-title">
+      Create Target Endpoint
+      <small>Connect DMS to Amazon S3</small>
+    </div>
+  </div>
+  <table class="config-table">
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Endpoint Type</td><td><code>Target</code></td></tr>
+      <tr><td>Engine</td><td><code>Amazon S3</code></td></tr>
+      <tr><td>Output Format</td><td><code>CSV</code></td></tr>
+      <tr><td>IAM Role ARN</td><td><code>arn:aws:iam::&lt;id&gt;:role/dms-s3-role</code></td></tr>
+      <tr><td>Bucket Name</td><td><code>my-dms-bucket-divyansh</code></td></tr>
+      <tr><td>Bucket Folder</td><td><code>airline_data</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- STEP 10: CDC TASK -->
+  <div class="section-header">
+    <div class="step-num">10</div>
+    <div class="section-title">
+      Create CDC Migration Task
+      <small>Full load + ongoing change replication</small>
+    </div>
+  </div>
+  <div class="callout callout-success">
+    <span class="callout-icon">✅</span>
+    <div>CDC (Change Data Capture) ensures that any INSERT, UPDATE, or DELETE made to your MySQL source is automatically replicated to S3 — enabling near real-time data sync.</div>
+  </div>
+  <div class="info-list">
+    <div class="info-item">
+      <span class="info-item-icon">⚙️</span>
+      <div><strong>Migration Type</strong><br><span>Migrate existing data and replicate ongoing changes</span></div>
+    </div>
+  </div>
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-header-left">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span class="code-lang">JSON</span>
+      </div>
+      <span class="code-file">table-mapping.json</span>
+    </div>
+    <pre>{
+  <span class="key">"rules"</span>: [
+    {
+      <span class="key">"rule-type"</span>:    <span class="str">"selection"</span>,
+      <span class="key">"rule-id"</span>:      <span class="str">"1"</span>,
+      <span class="key">"rule-name"</span>:    <span class="str">"1"</span>,
+      <span class="key">"object-locator"</span>: {
+        <span class="key">"schema-name"</span>: <span class="str">"%"</span>,
+        <span class="key">"table-name"</span>:  <span class="str">"%"</span>
+      },
+      <span class="key">"rule-action"</span>: <span class="str">"include"</span>
+    }
+  ]
+}</pre>
+  </div>
+  <div class="callout callout-info">
+    <span class="callout-icon">📌</span>
+    <div>The <code>%</code> wildcard in schema-name and table-name means <em>all tables from all schemas</em> are included in the migration. Narrow this down to specific tables in production workloads.</div>
+  </div>
+
+  <!-- OUTCOME -->
+  <div class="outcome">
+    <div style="font-size:48px; margin-bottom:16px;">🎉</div>
+    <h2>Migration <span>Complete!</span></h2>
+    <p>Successfully built an end-to-end AWS DMS pipeline with CDC replication from MySQL RDS to Amazon S3.</p>
+    <div class="outcome-pills">
+      <span class="outcome-pill">✅ Full Load Complete</span>
+      <span class="outcome-pill">🔁 CDC Active</span>
+      <span class="outcome-pill">🪣 S3 Data Written</span>
+      <span class="outcome-pill">📊 CSV Format</span>
+      <span class="outcome-pill">🔐 IAM Secured</span>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</body>
+</html>
